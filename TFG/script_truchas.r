@@ -15,7 +15,7 @@ set.seed(48729351)
 # Funciones
 qc_vlnplot <- function(objeto, features, group.by = "orig.ident", pt.size = 0.1, ncol = 3) {
   plots <- VlnPlot(objeto, features = features, group.by = group.by, pt.size = pt.size, ncol = ncol)
-  titulos <- c("Genes por cél.", "UMIs por cél.", "Contenido mitocondrial")
+  titulos <- c("Genes por célula", "UMIs por célula", "Contenido mitocondrial")
   y_labels <- c("Número de genes", "UMIs totales", "% genes mitocondriales")
 
   for (i in seq_along(features)) {
@@ -42,7 +42,6 @@ muestra2[["percent.mt"]] <- PercentageFeatureSet(muestra2, pattern = "^MT-")
 muestra3[["percent.mt"]] <- PercentageFeatureSet(muestra3, pattern = "^MT-")
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
 # Violin plot de nFeature_RNA y nCount_RNA para las tres muestras
 combinado <- merge(muestra1, y = c(muestra2, muestra3), add.cell.ids = c("SP1", "SP2", "SP3"))
 pre_limpieza <- qc_vlnplot(combinado, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
@@ -74,6 +73,13 @@ muestra3 <- subset(muestra3, scDblFinder.class == "singlet")
 
 combinado <- merge(muestra1, y = c(muestra2, muestra3), add.cell.ids = c("SP1", "SP2", "SP3"))
 post_limpieza <- qc_vlnplot(combinado, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+
+cat("muestra1:", nrow(muestra1), "genes,", ncol(muestra1), "células\n")
+cat("muestra2:", nrow(muestra2), "genes,", ncol(muestra2), "células\n")
+cat("muestra3:", nrow(muestra3), "genes,", ncol(muestra3), "células\n")
+
+ggsave("Resultados/Trucha_MSP/vln_sin_QC_trucha.png", plot = pre_limpieza, width = 20, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/vln_con_QC_trucha.png", plot = post_limpieza, width = 20, height = 8, dpi = 500)
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # Juntar muestras en una lista
@@ -111,7 +117,6 @@ DefaultAssay(datos_integrados) <- "integrated"
 datos_integrados <- RunPCA(datos_integrados)
 
 # Gráfico de codo para elegir el número de dimensiones
-# VizDimLoadings(datos_integrados, dims = 1:2, reduction = "pca") # Genes que más contribuyen a las componentes principales
 elbow_plot <- ElbowPlot(datos_integrados, ndims = 30)
 
 # UMAP y TSNE
@@ -121,7 +126,7 @@ datos_integrados <- RunTSNE(datos_integrados, dims = 1:30)
 # B. Clustering
 datos_integrados <- FindNeighbors(datos_integrados, dims = 1:30)
 
-# Se hacen 3 resoluciones para ver cuál es más adecuada
+# Comparación de resoluciones de clúster
 datos_integrados <- FindClusters(datos_integrados, resolution = 1.2)
 datos_integrados$resolution_1.2 <- datos_integrados$seurat_clusters
 
@@ -160,33 +165,48 @@ top3_marcadores <- top_marcadores %>%
   dplyr::ungroup()
 
 # 6. Generación de resultados --------------------------------------------------
-# Asignación de clústeres a tipo celular (reemplaza números)
+DefaultAssay(datos_integrados) <- "RNA"
+# - Heatmap de los 3 marcadores diferenciales más significativos por clúster
+heatmap_marcadores <- DoHeatmap(
+  datos_integrados,
+  features = top3_marcadores$gene,
+  size = 6,
+  assay = "integrated",
+  angle = 55
+) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.key.size = unit(0.7, "cm")
+  )
+
+# Asignación de clústeres a tipo celular (tras AED)
 new.cluster.ids <- c(
-  "1. B tempranas",
-  "2. Megacariocitos I",
-  "3. Megacariocitos II",
-  "4. T TCR-alfa",
-  "5. B maduras",
-  "6. B plasmablastos",
-  "7. T CD4+ memoria",
-  "8. T transición memoria/Treg",
-  "9. T CD8+ prolif.",
-  "10. T CD8+ dif.",
-  "11. Eritrocitos",
-  "12. Neutrófilos",
-  "13. NCC",
-  "14. Macrófagos I",
-  "15. Macrófagos II",
-  "16. cDCs",
-  "17. B plasmáticas",
-  "18. NK-like"
+  "0. B tempranas (IgM⁺)",
+  "1. Megacariocitos I",
+  "2. Megacariocitos II",
+  "3. T CD8⁺ efector migratorio (IL21R⁺)",
+  "4. B plasmáticas (Igλ⁺ Igκ⁺)",
+  "5. B naïve (IgM⁺)",
+  "6. T CD4⁺ memoria central (CCR7⁺ CD28⁺)",
+  "7. T CD8⁺ efector/memoria central (FOXO1⁺ SATB1⁺ CCR7⁺)",
+  "8. T CD8⁺ efector/proliferativo (MKI67⁺)",
+  "9. T CD8⁺ efector terminal (PRF1⁺ GZMB⁺)",
+  "10. Eritrocitos",
+  "11. Neutrófilos",
+  "12. NCC",
+  "13. Macrófagos I",
+  "14. Macrófagos II",
+  "15. cDCs",
+  "16. B plasmáticas maduras (Igκ⁺ CXCR4⁺)",
+  "17. NK-Like"
 )
 
 names(new.cluster.ids) <- levels(datos_integrados)
 datos_integrados <- RenameIdents(datos_integrados, new.cluster.ids)
 
 # Gráficos UMAP
-
 UMAP_Muestras <- DimPlot(
   datos_integrados,
   group.by = "orig.ident",
@@ -204,11 +224,13 @@ UMAP_Clusters <- DimPlot(
   pt.size = 0.4
 ) +
   labs(title = "Clústeres (UMAP)") +
+  theme(
+    axis.title = element_text(size = 20), axis.text = element_text(size = 18),
+  ) +
   guides(color = guide_legend(ncol = 1, override.aes = list(size = 4))) +
   NoLegend()
 
 # Gráficos t-SNE
-
 TSNE_Muestras <- DimPlot(
   datos_integrados,
   group.by = "orig.ident",
@@ -225,42 +247,86 @@ TSNE_Clusters <- DimPlot(
   pt.size = 0.4
 ) +
   labs(title = "Clústeres (t-SNE)") +
+  theme(
+    axis.title = element_text(size = 20), axis.text = element_text(size = 18),
+    legend.text = element_text(size = 12)
+  ) +
   guides(color = guide_legend(ncol = 1, override.aes = list(size = 4)))
 
 UMAP_Clusters + TSNE_Clusters
-UMAP_Muestras + TSNE_Muestras
 
-# Otros gráficos. DEBE USAR ASSAY INTEGRATED
-DefaultAssay(datos_integrados) <- "integrated"
-
-# Heatmap de los 3 marcadores diferenciales más significativos por clúster
-heatmap_marcadores <- DoHeatmap(datos_integrados, features = top3_marcadores$gene, size = 3, angle = 55) +
-  theme(axis.text.y = element_text(size = 6))
-
-# Visualización de la expresión génica en clusterss
-# - Marcadores representativos de cada clúster
-features_trucha <- unique(c(
-  "LOC110485215", # Cluster 0
-  "hyal3", # Cluster 1
-  "thbs1b", # Cluster 2
-  "LOC110530298", # Cluster 3
-  "LOC110487484", # Cluster 4
-  "LOC110533327", # Cluster 5
-  "LOC110534451", # Cluster 6
-  "LOC110537729", # Cluster 7
-  "sh2d1ab", # Cluster 8
-  "il2rb", # Cluster 9
-  "LOC110489254", # Cluster 10
-  "LOC100136017", # Cluster 11
-  "si:dkey-9i23.4", # Cluster 12
-  "LOC100136950", # Cluster 13 y 14
-  "LOC110535338", # Cluster 15
-  "zgc:152968", # Cluster 16
-  "LOC110536507" # Cluster 17
+# Otros gráficos.
+# - DotPlot del gen más expresado por cada clúster
+genes_clasicos <- unique(c(
+  "pax-5", "blnk", "LOC110538697",
+  "hyal3", "thbs1b",
+  "LOC110491676", "f13a1b",
+  "LOC110530298", "dock10", "il7r",
+  "LOC110487484", "LOC118936491", "LOC110496825",
+  "LOC110533327", "LOC110486747",
+  "LOC110534451", "LOC110534358", "LOC118941410",
+  "LOC110537729", "LOC118964336", "tcf7",
+  "sh2d1ab", "s100w", "LOC110531827",
+  "il2rb", "LOC110509811", "LOC110508453",
+  "LOC110489254", "LOC110538445",
+  "LOC100136017", "mmp9", "lect2",
+  "si:dkey-9i23.4", "LOC110534434", "LOC110531658",
+  "LOC100136950", "mpeg1.1", "plxdc2",
+  "LOC100136950", "csf3r", "lyz2",
+  "LOC110535338", "flt3", "si:dkey-88e18.2",
+  "zgc:152968", "LOC110500099", "LOC110499928",
+  "LOC110536507", "LOC110498134", "LOC110491495"
 ))
 
-# - DotPlot del gen más expresado por cada clúster
-dotplot_trucha <- DotPlot(datos_integrados, features = features_trucha, dot.scale = 4) +
+genes_nuevos_linfocitos <- unique(c(
+  # Linfocitos B
+  "LOC110485215", # CL0
+  "LOC118938876", # CL0
+  "LOC110533327", # CL0, CL5
+  "LOC110495722", # CL4
+  "LOC110500016", # CL4
+  "LOC110533868", # CL4
+  "LOC110527864", # CL5
+  "si:dkey-24p1.1", # CL5
+  "LOC118942906", # CL16
+  "LOC110526114", # CL16
+  # Linfocitos T
+  "si:ch211-67e16.3", # CL3
+  "LOC110528322", # CL3
+  "LOC110534358", # CL6
+  "LOC110496534", # CL6
+  "LOC118937335", # CL7
+  "LOC110529458", # CL7
+  "s100w", # CL8
+  "LOC118947720", # CL8
+  "LOC110502101", # CL9
+  "nitr2" # CL9
+))
+
+dotplot_clasico_trucha <- DotPlot(datos_integrados, features = genes_clasicos, dot.scale = 4) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 10, face = "bold"),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  ) +
+  scale_color_gradientn(colors = c("blue", "white", "red")) +
+  labs(title = "Marcadores clásicos de cada población", x = "Genes", y = "Clústers")
+
+# Subconjunto de linfocitos
+b_t_clusters <- c(
+  "0. B tempranas (IgM⁺)",
+  "3. T CD8⁺ efector migratorio (IL21R⁺)",
+  "4. B plasmáticas (Igλ⁺ Igκ⁺)",
+  "5. B naïve (IgM⁺)",
+  "6. T CD4⁺ memoria central (CCR7⁺ CD28⁺)",
+  "7. T CD8⁺ efector/memoria central (FOXO1⁺ SATB1⁺ CCR7⁺)",
+  "8. T CD8⁺ efector/proliferativo (MKI67⁺)",
+  "9. T CD8⁺ efector terminal (PRF1⁺ GZMB⁺)",
+  "16. B plasmáticas maduras (Igκ⁺ CXCR4⁺)"
+)
+linfocitos_subset <- subset(datos_integrados, idents = b_t_clusters)
+
+dotplot_nuevos_trucha <- DotPlot(linfocitos_subset, features = genes_nuevos_linfocitos, dot.scale = 4, assay = "RNA") +
   theme(
     axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 10, face = "bold"),
     axis.text.y = element_text(size = 10),
@@ -272,8 +338,19 @@ dotplot_trucha <- DotPlot(datos_integrados, features = features_trucha, dot.scal
 # - RidgePlot de genes más característicos
 ridgeplot_trucha <- RidgePlot(datos_integrados, features = c("cd3e", "hyal3", "LOC100136017"), ncol = 3)
 
-# - FeaturePlot de genes más característicos
-feature_plot <- FeaturePlot(datos_integrados, features = c("LOC100136251", "f13a1b"))
+# - FeaturePlot de genes más característicos y no identificados
+# Linf B
+# cl0_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC118936869", "pax-5"))
+# cl4_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110505920", "LOC110495722", "LOC110500016"))
+# cl5_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110533327", "LOC110527864"))
+# cl16_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110500099", "LOC110499553"))
+
+# Linf T
+# cl3_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110535393", "LOC110505032"))
+# cl6_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110496534", "LOC110534358", "LOC110516883"))
+# cl7_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110537729", "tcf7"))
+# cl8_feature_plot <- FeaturePlot(datos_integrados, features = c("s100w", "LOC118936983"))
+# cl9_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110509811"))
 
 # - ClusterTree y matriz de distancias
 colnames(datos_integrados@meta.data) <- sub("^resolution_", "res.", colnames(datos_integrados@meta.data))
@@ -297,13 +374,12 @@ top_marcadores %>%
   write.table(file = "Resultados/Trucha_MSP/top_marcadores_pct_diff.txt", sep = "\t", quote = FALSE, row.names = FALSE, dec = ",")
 
 # Guardar gráficos
-ggsave("Resultados/Trucha_MSP/vln_sin_QC_trucha.png", plot = pre_limpieza, width = 20, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/vln_con_QC_trucha.png", plot = post_limpieza, width = 20, height = 8, dpi = 500)
 ggsave("Resultados/Trucha_MSP/UMAP_TSNE_clusters_trucha.png", plot = UMAP_Clusters + TSNE_Clusters, width = 20, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/UMAP_TSNE_muestras_trucha.png", plot = UMAP_Muestras + TSNE_Muestras, width = 16, height = 8, dpi = 500)
+# ggsave("Resultados/Trucha_MSP/UMAP_TSNE_muestras_trucha.png", plot = UMAP_Muestras + TSNE_Muestras, width = 16, height = 8, dpi = 500)
 ggsave("Resultados/Trucha_MSP/heatmap_trucha.png", plot = heatmap_marcadores, width = 20, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/dotplot_trucha.png", plot = dotplot_trucha, width = 14, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/dotplot_nuevos_trucha.jpg", plot = dotplot_nuevos_trucha, width = 14, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/dotplot_clasico_trucha.jpg", plot = dotplot_clasico_trucha, width = 14, height = 8, dpi = 500)
 ggsave("Resultados/Trucha_MSP/clustertree_trucha.png", plot = cluster_tree, width = 15, height = 7, dpi = 500)
-ggsave("Resultados/Trucha_MSP/elbowplot_trucha.png", plot = elbow_plot, width = 14, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/elbowplot_trucha.jpg", plot = elbow_plot, width = 14, height = 8, dpi = 500)
 ggsave("Resultados/Trucha_MSP/featureplot_trucha.png", plot = feature_plot, width = 14, height = 8, dpi = 500)
 ggsave("Resultados/Trucha_MSP/ridgeplot_trucha.png", plot = ridgeplot_trucha, width = 20, height = 8, dpi = 500)

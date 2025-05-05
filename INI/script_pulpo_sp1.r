@@ -116,9 +116,9 @@ heatmap_marcadores <- DoHeatmap(
 ) +
   theme(
     axis.text.y = element_text(size = 13),
-    legend.text = element_text(size = 12),
+    legend.text = element_text(size = 18),
     legend.title = element_text(size = 14, face = "bold"),
-    legend.key.size = unit(0.8, "cm")
+    legend.key.size = unit(0.7, "cm")
   )
 
 heatmap_marcadores
