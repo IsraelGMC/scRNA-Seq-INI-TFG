@@ -18,7 +18,7 @@ sed '/^NC_001717.1/ s/gene_id "/gene_id "MT-/' genes_and_exons_no_rRNA.gtf > gen
 # 5. Eliminar archivos intermedios utilizados en el preprocesamiento:
 rm filtered_genes.gtf genes_and_exons.gtf genes_and_exons_no_rRNA.gtf
 
-# 6. Crear el archivo de referencia para Cell Ranger de O. vulgaris:
+# 6. Crear el archivo de referencia para Cell Ranger de O. mykiss:
 cellranger mkref \
   --genome=oncorhynchus_mykiss_genome_ref \
   --fasta=GCF_013265735.2_USDA_OmykA_1.1_genomic.fna \

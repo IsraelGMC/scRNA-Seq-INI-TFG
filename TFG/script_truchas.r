@@ -21,7 +21,13 @@ qc_vlnplot <- function(objeto, features, group.by = "orig.ident", pt.size = 0.1,
   for (i in seq_along(features)) {
     plots[[i]] <- plots[[i]] +
       labs(title = titulos[i], y = y_labels[i]) +
-      theme(plot.title = element_text(hjust = 0.5))
+      theme(
+        plot.title = element_text(hjust = 0.5, size = 25, face = "bold"),
+        axis.title.x = element_text(size = 24, face = "bold", margin = margin(t = 10)),
+        axis.title.y = element_text(size = 24, face = "bold", margin = margin(r = 10)),
+        axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5, size = 20),
+        axis.text.y = element_text(size = 20)
+      )
   }
   return(plots)
 }
@@ -151,6 +157,15 @@ marcadores <- FindAllMarkers(
   logfc.threshold = 0.25
 )
 
+#>>>>>>>>>>>>>>>>>>>>>>>>>>
+# QUITAR
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(scDblFinder)
+library(clustree)
+#<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 # Seleccionar los 20 marcadores más significativos por p-valor
 top_marcadores <- marcadores %>%
   dplyr::group_by(cluster) %>% # Agrupar por clúster
@@ -175,186 +190,286 @@ heatmap_marcadores <- DoHeatmap(
   angle = 55
 ) +
   theme(
-    axis.text.y = element_text(size = 12),
+    axis.text.y = element_text(size = 14),
     legend.text = element_text(size = 18),
-    legend.title = element_text(size = 14, face = "bold"),
-    legend.key.size = unit(0.7, "cm")
+    legend.title = element_text(size = 15, face = "bold"),
+    legend.key.size = unit(0.8, "cm")
   )
 
+# - RidgePlots de genes más característicos RESULTADOS
+library(patchwork)
+
+make_ridge_panel <- function(datos, genes, ncol = length(genes)) {
+  plots <- RidgePlot(datos, features = genes, combine = FALSE)
+  plots <- lapply(seq_along(plots), function(i) {
+    p <- plots[[i]] +
+      theme(
+        axis.text = element_text(size = 20),
+        plot.title = element_text(size = 25, hjust = 0.5, face = "bold")
+      )
+    # Mostrar eje Y solo en el primer gráfico
+    if (i == 1) {
+      p <- p + theme(axis.title.y = element_text(size = 30, face = "bold", hjust = 0.5))
+    } else {
+      p <- p + theme(
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank()
+      )
+    }
+    # Mostrar eje X solo en el segundo gráfico
+    if (i == 2) {
+      p <- p + theme(axis.title.x = element_text(size = 30, face = "bold", hjust = 0.64))
+    } else {
+      p <- p + theme(
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()
+      )
+    }
+    # Eliminar leyenda salvo en el último (opcional)
+    if (i != length(plots)) {
+      p <- p + theme(legend.position = "none")
+    } else {
+      p <- p + theme(
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.key.size = unit(0.9, "cm")
+      )
+    }
+
+    return(p)
+  })
+  wrap_plots(plots, ncol = ncol)
+}
+
+# Panel Linf B RESULTADOS
+ridgeplot_B_trucha <- make_ridge_panel(datos_integrados,
+  c("pax-5", "blnk", "LOC110537828"),
+  ncol = 3
+)
+
+ridgeplot_B_trucha
+# Panel Linf T RESULTADOS
+ridgeplot_T_trucha <- make_ridge_panel(datos_integrados,
+  c("LOC110530298", "cd3e", "tcf7"),
+  ncol = 3
+)
+
+ridgeplot_B_nuevos_trucha <- make_ridge_panel(datos_integrados,
+  c("LOC110533327", "si:dkey-24p1.1", "LOC110533868"),
+  ncol = 3
+)
+
 # Asignación de clústeres a tipo celular (tras AED)
-new.cluster.ids <- c(
-  "0. B tempranas (IgM⁺)",
+nuevos_id_clusteres <- c(
+  "0. B naïve IgD⁺",
   "1. Megacariocitos I",
   "2. Megacariocitos II",
-  "3. T CD8⁺ efector migratorio (IL21R⁺)",
-  "4. B plasmáticas (Igλ⁺ Igκ⁺)",
-  "5. B naïve (IgM⁺)",
-  "6. T CD4⁺ memoria central (CCR7⁺ CD28⁺)",
-  "7. T CD8⁺ efector/memoria central (FOXO1⁺ SATB1⁺ CCR7⁺)",
-  "8. T CD8⁺ efector/proliferativo (MKI67⁺)",
-  "9. T CD8⁺ efector terminal (PRF1⁺ GZMB⁺)",
+  "3. T CD4⁺ Th17",
+  "4. B maduras Igλ⁺/Igκ⁺",
+  "5. B naïve IgT⁺",
+  "6. T CD4⁺ Th0 naïve",
+  "7. T CD4⁺ Th0 memoria",
+  "8. T CD8⁺ Tc efector proliferativo",
+  "9. T CD8⁺ Tc efector terminal",
   "10. Eritrocitos",
   "11. Neutrófilos",
   "12. NCC",
   "13. Macrófagos I",
   "14. Macrófagos II",
   "15. cDCs",
-  "16. B plasmáticas maduras (Igκ⁺ CXCR4⁺)",
+  "16. B plasmáticas Igκ⁺/CXCR4⁺",
   "17. NK-Like"
 )
 
-names(new.cluster.ids) <- levels(datos_integrados)
-datos_integrados <- RenameIdents(datos_integrados, new.cluster.ids)
+names(nuevos_id_clusteres) <- levels(datos_integrados)
+datos_integrados <- RenameIdents(datos_integrados, nuevos_id_clusteres)
 
-# Gráficos UMAP
+# Gráficos UMAP-TSNE. Células por muestra
 UMAP_Muestras <- DimPlot(
   datos_integrados,
   group.by = "orig.ident",
   reduction = "umap",
   label.size = 3.5,
   pt.size = 0.4
-) + labs(title = "Muestras (UMAP)") +
-  NoLegend()
-
-UMAP_Clusters <- DimPlot(
-  datos_integrados,
-  reduction = "umap",
-  label = TRUE,
-  label.size = 3.5,
-  pt.size = 0.4
 ) +
-  labs(title = "Clústeres (UMAP)") +
+  labs(title = "Muestras (UMAP)") +
   theme(
-    axis.title = element_text(size = 20), axis.text = element_text(size = 18),
+    axis.title = element_text(size = 20),
+    axis.text = element_text(size = 18)
   ) +
-  guides(color = guide_legend(ncol = 1, override.aes = list(size = 4))) +
   NoLegend()
 
-# Gráficos t-SNE
 TSNE_Muestras <- DimPlot(
   datos_integrados,
   group.by = "orig.ident",
   reduction = "tsne",
   label.size = 3.5,
   pt.size = 0.4
-) + labs(title = "Muestras (t-SNE)")
+) +
+  labs(title = "Muestras (t-SNE)") +
+  theme(
+    axis.title = element_text(size = 20),
+    axis.text = element_text(size = 18)
+  )
+
+# Gráficos UMAP-TSNE. Clústeres
+UMAP_Clusters <- DimPlot(
+  datos_integrados,
+  reduction = "umap",
+  label = TRUE,
+  label.size = 7,
+  pt.size = 0.4,
+  repel = TRUE
+) +
+  labs(title = "Clústeres (UMAP)") +
+  theme(
+    axis.title = element_text(size = 20), axis.text = element_text(size = 22),
+  ) +
+  guides(color = guide_legend(ncol = 1, override.aes = list(size = 4))) +
+  NoLegend()
 
 TSNE_Clusters <- DimPlot(
   datos_integrados,
   reduction = "tsne",
   label = TRUE,
-  label.size = 3.5,
-  pt.size = 0.4
+  label.size = 7,
+  pt.size = 0.4,
+  repel = TRUE
 ) +
   labs(title = "Clústeres (t-SNE)") +
   theme(
-    axis.title = element_text(size = 20), axis.text = element_text(size = 18),
-    legend.text = element_text(size = 12)
+    axis.title = element_text(size = 20), axis.text = element_text(size = 22),
+    legend.text = element_text(size = 16),
   ) +
-  guides(color = guide_legend(ncol = 1, override.aes = list(size = 4)))
-
-UMAP_Clusters + TSNE_Clusters
+  guides(color = guide_legend(ncol = 1, override.aes = list(size = 4), keyheight = unit(1, "cm"), keywidth = unit(1, "cm")))
 
 # Otros gráficos.
 # - DotPlot del gen más expresado por cada clúster
 genes_clasicos <- unique(c(
-  "pax-5", "blnk", "LOC110538697",
-  "hyal3", "thbs1b",
-  "LOC110491676", "f13a1b",
-  "LOC110530298", "dock10", "il7r",
-  "LOC110487484", "LOC118936491", "LOC110496825",
-  "LOC110533327", "LOC110486747",
-  "LOC110534451", "LOC110534358", "LOC118941410",
-  "LOC110537729", "LOC118964336", "tcf7",
-  "sh2d1ab", "s100w", "LOC110531827",
-  "il2rb", "LOC110509811", "LOC110508453",
-  "LOC110489254", "LOC110538445",
-  "LOC100136017", "mmp9", "lect2",
-  "si:dkey-9i23.4", "LOC110534434", "LOC110531658",
-  "LOC100136950", "mpeg1.1", "plxdc2",
-  "LOC100136950", "csf3r", "lyz2",
-  "LOC110535338", "flt3", "si:dkey-88e18.2",
-  "zgc:152968", "LOC110500099", "LOC110499928",
-  "LOC110536507", "LOC110498134", "LOC110491495"
-))
-
-genes_nuevos_linfocitos <- unique(c(
-  # Linfocitos B
-  "LOC110485215", # CL0
-  "LOC118938876", # CL0
-  "LOC110533327", # CL0, CL5
-  "LOC110495722", # CL4
-  "LOC110500016", # CL4
-  "LOC110533868", # CL4
-  "LOC110527864", # CL5
-  "si:dkey-24p1.1", # CL5
-  "LOC118942906", # CL16
-  "LOC110526114", # CL16
-  # Linfocitos T
-  "si:ch211-67e16.3", # CL3
-  "LOC110528322", # CL3
-  "LOC110534358", # CL6
-  "LOC110496534", # CL6
-  "LOC118937335", # CL7
-  "LOC110529458", # CL7
-  "s100w", # CL8
-  "LOC118947720", # CL8
-  "LOC110502101", # CL9
-  "nitr2" # CL9
+  "pax-5", "blnk", "LOC110537828", # General linfocitos B
+  "LOC110530298", "cd3e", "cd8a", # General de linfocitos T
+  "LOC110538697", "LOC110485215", # CL0: IgDs
+  "hyal3", # CL1
+  "f13a1b", # CL2
+  "dock10", "il7r", # CL3
+  "LOC110487484", "LOC110496825", "cd79b", # CL4
+  "LOC110486747", # # CL5: IgT
+  "LOC110534451", "LOC100136274", # CL6
+  "LOC118964336", "tcf7", # CL7
+  "sh2d1ab", "LOC110531827", # CL8
+  "il2rb", "LOC110508453", # CL9
+  "hba4", # CL10
+  "mmp9", "lect2", # CL11
+  "si:dkey-9i23.4", "LOC110531658", # CL12
+  "mpeg1.1", "plxdc2", # CL13
+  "lyz2", "csf3r", # CL14
+  "LOC110535338", "LOC110487813", # CL15
+  "LOC110530627", "LOC110499928", "LOC110500099", # CL16
+  "LOC110498134", "prf1.3" # CL17
 ))
 
 dotplot_clasico_trucha <- DotPlot(datos_integrados, features = genes_clasicos, dot.scale = 4) +
   theme(
     axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 10, face = "bold"),
-    axis.text.y = element_text(size = 10),
+    axis.text.y = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
     plot.title = element_text(hjust = 0.5, face = "bold")
   ) +
   scale_color_gradientn(colors = c("blue", "white", "red")) +
   labs(title = "Marcadores clásicos de cada población", x = "Genes", y = "Clústers")
 
 # Subconjunto de linfocitos
+genes_nuevos_linfocitos <- unique(c(
+  # Linfocitos B
+  "LOC118938876", # CL0; lncRNA
+  "LOC110533327", # CL0, CL5; PC
+  "LOC110533868", # CL4; PC
+  "LOC110527864", # CL5; PC
+  "si:dkey-24p1.1", # CL5; PC
+  "LOC118942906", # CL16; lncRNA
+  "LOC110526114", # CL16; PC
+  # Linfocitos T
+  "LOC118937335", # CL7; lncRNA
+  "LOC110529458", # CL7; PC
+  "LOC118947720", # CL8; PC
+  "LOC110499816", # CL8; PC
+  "LOC110502101", # CL9; PC
+  # Descartados
+  "LOC110495722", # CL4; lncRNA; B; NO INTERESA
+  "LOC110500016", # CL4; lncRNA; B; NO INTERESA
+  "LOC110528322", # CL3; T; NO INTERESA
+  "si:ch211-67e16.3", # CL3; T; NO INTERESA
+  "LOC110534358", # CL6; PC; T; NO INTERESA
+  "LOC110496534" # CL6; lncRNA; T; NO INTERESA
+))
+
 b_t_clusters <- c(
-  "0. B tempranas (IgM⁺)",
-  "3. T CD8⁺ efector migratorio (IL21R⁺)",
-  "4. B plasmáticas (Igλ⁺ Igκ⁺)",
-  "5. B naïve (IgM⁺)",
-  "6. T CD4⁺ memoria central (CCR7⁺ CD28⁺)",
-  "7. T CD8⁺ efector/memoria central (FOXO1⁺ SATB1⁺ CCR7⁺)",
-  "8. T CD8⁺ efector/proliferativo (MKI67⁺)",
-  "9. T CD8⁺ efector terminal (PRF1⁺ GZMB⁺)",
-  "16. B plasmáticas maduras (Igκ⁺ CXCR4⁺)"
+  "0. B naïve IgD⁺",
+  "3. T CD4⁺ Th17",
+  "4. B maduras Igλ⁺/Igκ⁺",
+  "5. B naïve IgT⁺",
+  "6. T CD4⁺ Th0 naïve",
+  "7. T CD4⁺ Th0 memoria",
+  "8. T CD8⁺ Tc efector proliferativo",
+  "9. T CD8⁺ Tc efector terminal",
+  "16. B plasmáticas Igκ⁺/CXCR4⁺"
 )
 linfocitos_subset <- subset(datos_integrados, idents = b_t_clusters)
 
 dotplot_nuevos_trucha <- DotPlot(linfocitos_subset, features = genes_nuevos_linfocitos, dot.scale = 4, assay = "RNA") +
   theme(
     axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 10, face = "bold"),
-    axis.text.y = element_text(size = 10),
+    axis.text.y = element_text(size = 15),
+    axis.title = element_text(size = 20, face = "bold"),
     plot.title = element_text(hjust = 0.5, face = "bold")
   ) +
   scale_color_gradientn(colors = c("blue", "white", "red")) +
   labs(title = "Gen más expresado por clúster", x = "Genes", y = "Clústers")
 
-# - RidgePlot de genes más característicos
-ridgeplot_trucha <- RidgePlot(datos_integrados, features = c("cd3e", "hyal3", "LOC100136017"), ncol = 3)
-
-# - FeaturePlot de genes más característicos y no identificados
-# Linf B
-# cl0_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC118936869", "pax-5"))
-# cl4_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110505920", "LOC110495722", "LOC110500016"))
-# cl5_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110533327", "LOC110527864"))
-# cl16_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110500099", "LOC110499553"))
-
-# Linf T
-# cl3_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110535393", "LOC110505032"))
-# cl6_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110496534", "LOC110534358", "LOC110516883"))
-# cl7_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110537729", "tcf7"))
-# cl8_feature_plot <- FeaturePlot(datos_integrados, features = c("s100w", "LOC118936983"))
-# cl9_feature_plot <- FeaturePlot(datos_integrados, features = c("LOC110509811"))
-
 # - ClusterTree y matriz de distancias
 colnames(datos_integrados@meta.data) <- sub("^resolution_", "res.", colnames(datos_integrados@meta.data))
-cluster_tree <- clustree(datos_integrados@meta.data, prefix = "res.")
+cluster_tree <- clustree(datos_integrados@meta.data, prefix = "res.", node_text_size = 13, node_size_range = c(12, 30)) +
+  theme(text = element_text(size = 36)) +
+  scale_edge_color_continuous(low = "blue", high = "red")
+
+# - FeaturePlot de genes más característicos ya conocidos
+tema_ejes <- theme(
+  axis.title = element_text(size = 20),
+  axis.text = element_text(size = 18),
+  plot.title = element_text(size = 25, hjust = 0.5, face = "bold")
+)
+
+# Linf B CLÁSICOS
+cl0bc_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110485215") + ggtitle("Clúster 0 – IgD (LOC110485215)") + tema_ejes
+cl5bc_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110486747") + ggtitle("Clúster 5 – IgT (LOC110486747)") + tema_ejes
+cl4bc_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110487484") + ggtitle("Clúster 4 – Igλ (LOC110487484)") + tema_ejes
+cl16bc_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110530627") + ggtitle("Clúster 16 – CXCR4 (LOC110530627)") + tema_ejes
+
+grid_B <- (cl0bc_feature_plot | cl4bc_feature_plot) / (cl5bc_feature_plot | cl16bc_feature_plot)
+
+# Linf T CLÁSICOS
+cl9tc_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110520645") + ggtitle("Clúster 9 – LOC110520645") + tema_ejes
+cl7tc_feature_plot <- FeaturePlot(datos_integrados, features = "tcf7") + ggtitle("Clúster 7 – tcf7") + tema_ejes
+cl6tc_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110489493") + ggtitle("Clúster 6 – LOC110489493") + tema_ejes
+cl8tc_feature_plot <- FeaturePlot(datos_integrados, features = "mki67") + ggtitle("Clúster 8 – MKI67") + tema_ejes
+
+grid_T <- (cl6tc_feature_plot | cl7tc_feature_plot) / (cl8tc_feature_plot | cl9tc_feature_plot)
+
+# Linf B NUEVOS
+cl0bn_feature_plot <- FeaturePlot(datos_integrados, features = "LOC118938876") + ggtitle("Clúster 0 – LOC118938876") + tema_ejes
+cl4bn_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110533868") + ggtitle("Clúster 4 – LOC110533868") + tema_ejes
+cl5bn_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110527864") + ggtitle("Clúster 5 – LOC110527864") + tema_ejes
+cl16bn_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110526114") + ggtitle("Clúster 16 – LOC110526114") + tema_ejes
+
+grid_B_nuevos <- (cl0bn_feature_plot | cl4bn_feature_plot) / (cl5bn_feature_plot | cl16bn_feature_plot)
+
+# Linf T NUEVOS
+cl7tn_1_feature_plot <- FeaturePlot(datos_integrados, features = "LOC118937335") + ggtitle("Clúster 7 – LOC118937335") + tema_ejes
+cl7tn_2_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110490984") + ggtitle("Clúster 7 – FOXO1 (LOC110490984)") + tema_ejes
+cl8_tn_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110499816") + ggtitle("Clúster 8 – AURKB (LOC110499816)") + tema_ejes
+cl9tn_feature_plot <- FeaturePlot(datos_integrados, features = "LOC110502101") + ggtitle("Clúster 9 – DGKB (LOC110502101)") + tema_ejes
+
+grid_T_nuevos <- (cl7tn_1_feature_plot | cl7tn_2_feature_plot) / (cl8_tn_feature_plot | cl9tn_feature_plot)
 
 # 7. Guardar los resultados ---------------------------------------------------
 # Guardar en txt los marcadores más representativos (p_val) de cada clúster
@@ -375,11 +490,17 @@ top_marcadores %>%
 
 # Guardar gráficos
 ggsave("Resultados/Trucha_MSP/UMAP_TSNE_clusters_trucha.png", plot = UMAP_Clusters + TSNE_Clusters, width = 20, height = 8, dpi = 500)
-# ggsave("Resultados/Trucha_MSP/UMAP_TSNE_muestras_trucha.png", plot = UMAP_Muestras + TSNE_Muestras, width = 16, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/heatmap_trucha.png", plot = heatmap_marcadores, width = 20, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/dotplot_nuevos_trucha.jpg", plot = dotplot_nuevos_trucha, width = 14, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/dotplot_clasico_trucha.jpg", plot = dotplot_clasico_trucha, width = 14, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/clustertree_trucha.png", plot = cluster_tree, width = 15, height = 7, dpi = 500)
+ggsave("Resultados/Trucha_MSP/UMAP_TSNE_muestras_trucha.png", plot = UMAP_Muestras + TSNE_Muestras, width = 16, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/heatmap_trucha.png", plot = heatmap_marcadores, width = 20, height = 12, dpi = 500)
+ggsave("Resultados/Trucha_MSP/dotplot_Clásicos_trucha.jpg", plot = dotplot_clasico_trucha, width = 14, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/dotplot_Nuevos_trucha.jpg", plot = dotplot_nuevos_trucha, width = 14, height = 6, dpi = 500)
+ggsave("Resultados/Trucha_MSP/clustertree_trucha.png", plot = cluster_tree, width = 30, height = 11, dpi = 500)
 ggsave("Resultados/Trucha_MSP/elbowplot_trucha.jpg", plot = elbow_plot, width = 14, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/featureplot_trucha.png", plot = feature_plot, width = 14, height = 8, dpi = 500)
-ggsave("Resultados/Trucha_MSP/ridgeplot_trucha.png", plot = ridgeplot_trucha, width = 20, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/ridgeplot_T_trucha.png", plot = ridgeplot_T_trucha, width = 20, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/ridgeplot_B_trucha.png", plot = ridgeplot_B_trucha, width = 20, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/ridgeplot_B_Nuevos_trucha.png", plot = ridgeplot_B_nuevos_trucha, width = 20, height = 8, dpi = 500)
+ggsave("Resultados/Trucha_MSP/featureplot_B_Clásicos_trucha.png", plot = grid_B, width = 14, height = 14, dpi = 500)
+ggsave("Resultados/Trucha_MSP/featureplot_T_Clásicos_trucha.png", plot = grid_T, width = 14, height = 14, dpi = 500)
+ggsave("Resultados/Trucha_MSP/featureplot_B_Nuevos_trucha.png", plot = grid_B_nuevos, width = 14, height = 14, dpi = 500)
+ggsave("Resultados/Trucha_MSP/featureplot_T_Nuevos_trucha.png", plot = grid_T_nuevos, width = 14, height = 14, dpi = 500)
+ggsave("Resultados/Trucha_MSP/vln_coe1a.png", plot = coe1a_vlnplot, width = 14, height = 8, dpi = 500)
