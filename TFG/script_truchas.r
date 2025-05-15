@@ -157,15 +157,6 @@ marcadores <- FindAllMarkers(
   logfc.threshold = 0.25
 )
 
-#>>>>>>>>>>>>>>>>>>>>>>>>>>
-# QUITAR
-library(Seurat)
-library(ggplot2)
-library(dplyr)
-library(scDblFinder)
-library(clustree)
-#<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 # Seleccionar los 20 marcadores más significativos por p-valor
 top_marcadores <- marcadores %>%
   dplyr::group_by(cluster) %>% # Agrupar por clúster
@@ -225,7 +216,7 @@ make_ridge_panel <- function(datos, genes, ncol = length(genes)) {
         axis.text.x = element_blank()
       )
     }
-    # Eliminar leyenda salvo en el último (opcional)
+    # Eliminar leyenda salvo en el último
     if (i != length(plots)) {
       p <- p + theme(legend.position = "none")
     } else {
@@ -503,4 +494,3 @@ ggsave("Resultados/Trucha_MSP/featureplot_B_Clásicos_trucha.png", plot = grid_B
 ggsave("Resultados/Trucha_MSP/featureplot_T_Clásicos_trucha.png", plot = grid_T, width = 14, height = 14, dpi = 500)
 ggsave("Resultados/Trucha_MSP/featureplot_B_Nuevos_trucha.png", plot = grid_B_nuevos, width = 14, height = 14, dpi = 500)
 ggsave("Resultados/Trucha_MSP/featureplot_T_Nuevos_trucha.png", plot = grid_T_nuevos, width = 14, height = 14, dpi = 500)
-ggsave("Resultados/Trucha_MSP/vln_coe1a.png", plot = coe1a_vlnplot, width = 14, height = 8, dpi = 500)
