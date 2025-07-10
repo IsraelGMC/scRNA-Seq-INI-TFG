@@ -5,4 +5,4 @@ Aquí se encuentran los scripts de análisis y procesamiento de datos de scRNA-s
 
 ## Licencia
 
-Este repositorio está licenciado bajo la licencia Creative Commons Attribution-NonCommercial 4.0 International, cuyos términos completos pueden leerse a través de [este enlace](http://creativecommons.org/licenses/by-nc/4.0/).
+Este repositorio está licenciado bajo Creative Commons Attribution-NonCommercial 4.0 International, cuyos términos completos pueden leerse a través de [este enlace](http://creativecommons.org/licenses/by-nc/4.0/).
